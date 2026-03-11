@@ -1,94 +1,86 @@
-# React + TypeScript + Vite
+# ArtMinds Quiz
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+ArtMinds Quiz is a React + TypeScript app that shows artwork images and asks users to identify the painter and period.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Two-attempt quiz flow per artwork
+- Partial-match blast prompt:
+  - "Painter matches only, try again or continue"
+  - "Period matches only, try again or continue"
+- Correct-answer blast: "You guessed it!"
+- Score and progress tracking
+- Premium upgrade CTA via Stripe
+- Premium unlock state persisted in local storage
+- Premium "saved correct answers this play period" counter
+- Responsive desktop + mobile layout
+- Terms of Use link and legal page
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Vite
+- React 19
+- TypeScript
 
-## Expanding the ESLint configuration
+## Run Locally
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+1. Install dependencies:
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+2. Start dev server:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run dev
 ```
 
-## Stripe Payment Link (unlimited artwork limit)
+3. Build production bundle:
 
-The app includes a Stripe checkout CTA for an alternative plan: **unlimited artwork limit for $9.99/year**.
+```bash
+npm run build
+```
 
-1. Create a Stripe Payment Link in your Stripe Dashboard for the yearly plan.
-2. Add a `.env` file in the project root with:
+## Premium Stripe Setup
+
+Premium plan in this app is **unlimited artwork limit for $9.99/year**.
+
+1. Create a Stripe Payment Link in Stripe Dashboard.
+2. Create `.env` in project root:
 
 ```bash
 VITE_STRIPE_PAYMENT_LINK=https://buy.stripe.com/your-payment-link
 ```
 
-3. Restart the dev server.
+3. Restart dev server.
 
-When the variable is set, the **Pay with Stripe** button redirects users to Stripe Checkout.
+When configured, the **Pay with Stripe** button redirects to Stripe Checkout.
 
-To auto-unlock premium UI after checkout, set your Stripe return URL to include one of these query params:
+### Premium Auto-Unlock Return URL
+
+Set Stripe success return URL to include one of these query params:
 
 - `?premium=success`
 - `?checkout=success`
 - `?payment=success`
+
+This marks premium as unlocked in local storage.
+
+## Test on iPhone (same Wi-Fi)
+
+Run:
+
+```bash
+npm run dev -- --host
+```
+
+Open the LAN URL from your terminal on iPhone Safari (example: `http://192.168.1.23:5174`).
+
+If needed, allow Node/Vite through Windows Firewall on private network.
+
+## Legal
+
+- Terms page: `/terms.html`
+- Contact email: `vidojam@gmail.com`
+- Copyright: © 2026 Jose Torres

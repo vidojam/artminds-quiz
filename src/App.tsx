@@ -265,7 +265,7 @@ function App() {
               </p>
             )}
           </div>
-          <button type="button" className="primary-button" onClick={restartQuiz}>
+          <button type="button" className="primary-button play-again-button" onClick={restartQuiz}>
             Play again
           </button>
         </section>

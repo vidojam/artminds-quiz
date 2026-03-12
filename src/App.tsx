@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import './App.css'
+import starryNightImage from './assets/starry-night.jpg'
 
 type Artwork = {
   title: string
@@ -11,8 +12,7 @@ type Artwork = {
 const artworks: Artwork[] = [
   {
     title: 'The Starry Night',
-    imageUrl:
-      'https://upload.wikimedia.org/wikipedia/commons/e/ea/The_Starry_Night.JPG',
+    imageUrl: starryNightImage,
     painterAliases: ['vincent van gogh', 'van gogh'],
     periodAliases: ['post-impressionism', 'post impressionism'],
   },
@@ -244,7 +244,7 @@ function App() {
               Saved correct answers this play period: {premiumPeriodCorrect}
             </p>
           )}
-          <div className="upgrade-box">
+          <div className="upgrade-box upgrade-box-right">
             <p className="upgrade-title">Unlock unlimited artwork limit</p>
             <p className="upgrade-price">$9.99 per year</p>
             {isPremium ? (
@@ -360,7 +360,7 @@ function App() {
           {feedback || `You have ${attemptsLeft} attempt${attemptsLeft === 1 ? '' : 's'} left.`}
         </p>
 
-        <div className="upgrade-box">
+        <div className="upgrade-box upgrade-box-right">
           <p className="upgrade-title">Alternative: unlimited artwork limit</p>
           <p className="upgrade-price">$9.99 per year</p>
           {isPremium ? (

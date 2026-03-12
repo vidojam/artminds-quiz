@@ -163,6 +163,11 @@
   justify-content: center;
 }
 
+.blast-actions .primary-button,
+.blast-actions .secondary-button {
+  color: #ffd65a;
+}
+
 @media (max-width: 640px) {
   .quiz-shell {
     padding: 1rem 0.75rem;

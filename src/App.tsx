@@ -246,13 +246,13 @@ function App() {
 
     if (painterCorrect !== periodCorrect) {
       const partialMessage = painterCorrect
-        ? 'Painter matches only, try again or continue'
-        : 'Period matches only, try again or continue'
+        ? 'Painter matches only, continue.'
+        : 'Period matches only, continue.'
 
       setBlastMessage(partialMessage)
       setBlastVisible(true)
       setShowPartialPrompt(true)
-      setPainterMatchOnly(painterCorrect)
+      setPainterMatchOnly(painterCorrect || !periodCorrect)
       setFeedback(partialMessage)
       return
     }
@@ -295,7 +295,11 @@ function App() {
   const handleContinue = () => {
     setBlastVisible(false)
     setShowPartialPrompt(false)
+    const wasPeriodMatchOnly = !painterMatchOnly && showPartialPrompt
     setPainterMatchOnly(false)
+    if (wasPeriodMatchOnly) {
+      setAttemptsUsed((value) => Math.min(value + 1, 2))
+    }
     setFeedback(`Incorrect. ${revealText}`)
     window.setTimeout(() => {
       moveToNextArtwork()

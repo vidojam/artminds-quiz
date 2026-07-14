@@ -6,7 +6,6 @@ type Artwork = {
   title: string
   imageUrl: string
   painterAliases: string[]
-  periodAliases: string[]
 }
 
 const artworks: Artwork[] = [
@@ -14,21 +13,18 @@ const artworks: Artwork[] = [
     title: 'The Starry Night',
     imageUrl: starryNightImage,
     painterAliases: ['vincent van gogh', 'van gogh'],
-    periodAliases: ['post-impressionism', 'post impressionism'],
   },
   {
     title: 'Mona Lisa',
     imageUrl:
       'https://upload.wikimedia.org/wikipedia/commons/6/6a/Mona_Lisa.jpg',
     painterAliases: ['leonardo da vinci', 'da vinci', 'leonardo'],
-    periodAliases: ['renaissance', 'high renaissance'],
   },
   {
     title: 'The Persistence of Memory',
     imageUrl:
       'https://upload.wikimedia.org/wikipedia/en/d/dd/The_Persistence_of_Memory.jpg',
     painterAliases: ['salvador dali', 'dali'],
-    periodAliases: ['surrealism', 'surrealist'],
   },
 ]
 
@@ -53,24 +49,6 @@ const painterChoicesPool = [
   'Titian',
   'Diego Velazquez',
   'Jan van Eyck',
-]
-
-const periodChoicesPool = [
-  'Baroque',
-  'Romanticism',
-  'Neoclassicism',
-  'Impressionism',
-  'Expressionism',
-  'Cubism',
-  'Abstract Expressionism',
-  'Realism',
-  'Rococo',
-  'Symbolism',
-  'Fauvism',
-  'Minimalism',
-  'Pop Art',
-  'Northern Renaissance',
-  'Mannerism',
 ]
 
 const shuffleList = <T,>(items: T[]) => {
@@ -101,6 +79,7 @@ const normalize = (value: string) =>
 const stripePaymentLink =
   import.meta.env.VITE_STRIPE_PAYMENT_LINK?.toString().trim() ?? ''
 const premiumStorageKey = 'artminds-premium-unlocked'
+const selectionFeedbackDelayMs = 160
 
 const isPremiumSuccessInUrl = () => {
   const searchParams = new URLSearchParams(window.location.search)
@@ -120,7 +99,6 @@ const isPremiumSuccessInUrl = () => {
 function App() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [painterAnswer, setPainterAnswer] = useState('')
-  const [periodAnswer, setPeriodAnswer] = useState('')
   const [attemptsUsed, setAttemptsUsed] = useState(0)
   const [score, setScore] = useState(0)
   const [feedback, setFeedback] = useState(() =>
@@ -128,13 +106,10 @@ function App() {
       ? 'Premium unlocked! Unlimited artwork limit is now active.'
       : '',
   )
+  const [isResolvingSelection, setIsResolvingSelection] = useState(false)
   const [blastVisible, setBlastVisible] = useState(false)
   const [blastMessage, setBlastMessage] = useState('🎉 You guessed it! 🎉')
-  const [showPartialPrompt, setShowPartialPrompt] = useState(false)
-  const [painterMatchOnly, setPainterMatchOnly] = useState(false)
   const [showRevealOverlay, setShowRevealOverlay] = useState(false)
-  const [painterDialogOpen, setPainterDialogOpen] = useState(false)
-  const [periodDialogOpen, setPeriodDialogOpen] = useState(false)
   const [quizFinished, setQuizFinished] = useState(false)
   const [isPremium] = useState(() => {
     if (typeof window === 'undefined') return false
@@ -158,24 +133,11 @@ function App() {
 
     return shuffleList([correctPainter, ...selectedDecoys])
   }, [currentArtwork])
-  const periodSelectionOptions = useMemo(() => {
-    if (!currentArtwork) return []
-
-    const correctPeriod = currentArtwork.periodAliases[0]
-    const quizPeriods = artworks.map((artwork) => artwork.periodAliases[0])
-    const candidateSet = new Set<string>([...periodChoicesPool, ...quizPeriods])
-    const decoyPeriods = Array.from(candidateSet).filter(
-      (period) => normalize(period) !== normalize(correctPeriod),
-    )
-    const selectedDecoys = shuffleList(decoyPeriods).slice(0, 2)
-
-    return shuffleList([correctPeriod, ...selectedDecoys])
-  }, [currentArtwork])
 
   const revealText = useMemo(() => {
     if (!currentArtwork) return ''
 
-    return `Painter: ${currentArtwork.painterAliases[0]} | Period: ${currentArtwork.periodAliases[0]}`
+    return `Painter: ${currentArtwork.painterAliases[0]}`
   }, [currentArtwork])
 
   useEffect(() => {
@@ -189,11 +151,9 @@ function App() {
 
   const resetRoundInputs = () => {
     setPainterAnswer('')
-    setPeriodAnswer('')
     setAttemptsUsed(0)
+    setIsResolvingSelection(false)
     setShowRevealOverlay(false)
-    setPainterDialogOpen(false)
-    setPeriodDialogOpen(false)
   }
 
   const moveToNextArtwork = () => {
@@ -205,14 +165,12 @@ function App() {
 
     setCurrentIndex(nextIndex)
     setFeedback('')
-    setShowPartialPrompt(false)
     resetRoundInputs()
   }
 
   const triggerSuccessBlast = () => {
     setBlastMessage('🎉 You guessed it! 🎉')
     setBlastVisible(true)
-    setShowPartialPrompt(false)
     setFeedback('You guessed it!')
 
     window.setTimeout(() => {
@@ -221,85 +179,58 @@ function App() {
     }, 1500)
   }
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
+  const submitPainterAnswer = (selectedPainter: string) => {
+    if (!currentArtwork || blastVisible || quizFinished || isResolvingSelection) return
 
-    if (!currentArtwork || blastVisible || quizFinished) return
+    setPainterAnswer(selectedPainter)
+    setIsResolvingSelection(true)
 
-    const normalizedPainter = normalize(painterAnswer)
-    const normalizedPeriod = normalize(periodAnswer)
+    const normalizedPainter = normalize(selectedPainter)
 
     const painterCorrect = currentArtwork.painterAliases
       .map(normalize)
       .includes(normalizedPainter)
-    const periodCorrect = currentArtwork.periodAliases
-      .map(normalize)
-      .includes(normalizedPeriod)
 
-    const isCorrect = painterCorrect && periodCorrect
-
-    if (isCorrect) {
-      setScore((previousScore) => previousScore + 1)
-      triggerSuccessBlast()
-      return
-    }
-
-    if (painterCorrect !== periodCorrect) {
-      const partialMessage = painterCorrect
-        ? 'Painter matches only, continue.'
-        : 'Period matches only, continue.'
-
-      setBlastMessage(partialMessage)
-      setBlastVisible(true)
-      setShowPartialPrompt(true)
-      setPainterMatchOnly(painterCorrect || !periodCorrect)
-      setFeedback(partialMessage)
+    if (painterCorrect) {
+      window.setTimeout(() => {
+        setIsResolvingSelection(false)
+        setScore((previousScore) => previousScore + 1)
+        triggerSuccessBlast()
+      }, selectionFeedbackDelayMs)
       return
     }
 
     if (attemptsUsed === 0) {
-      setAttemptsUsed(1)
-      setFeedback('Not quite — one more try.')
+      window.setTimeout(() => {
+        setIsResolvingSelection(false)
+        setAttemptsUsed(1)
+        setFeedback('Not quite — one more try.')
+      }, selectionFeedbackDelayMs)
       return
     }
 
-    setFeedback(`Incorrect. ${revealText}`)
-    setShowRevealOverlay(true)
+    window.setTimeout(() => {
+      setIsResolvingSelection(false)
+      setFeedback(`Incorrect. ${revealText}`)
+      setShowRevealOverlay(true)
+    }, selectionFeedbackDelayMs)
   }
 
   const restartQuiz = () => {
     setCurrentIndex(0)
     setPainterAnswer('')
-    setPeriodAnswer('')
     setAttemptsUsed(0)
     setScore(0)
     setFeedback('')
+    setIsResolvingSelection(false)
     setBlastVisible(false)
     setBlastMessage('🎉 You guessed it! 🎉')
-    setShowPartialPrompt(false)
-    setPainterMatchOnly(false)
     setShowRevealOverlay(false)
-    setPainterDialogOpen(false)
-    setPeriodDialogOpen(false)
     setQuizFinished(false)
-  }
-
-  const handleTryAgain = () => {
-    setBlastVisible(false)
-    setShowPartialPrompt(false)
-    setPainterMatchOnly(false)
-    setAttemptsUsed((value) => Math.min(value + 1, 1))
-    setFeedback('Try again with your updated answer.')
   }
 
   const handleContinue = () => {
     setBlastVisible(false)
-    setShowPartialPrompt(false)
-    const wasPeriodMatchOnly = !painterMatchOnly && showPartialPrompt
-    setPainterMatchOnly(false)
-    if (wasPeriodMatchOnly) {
-      setAttemptsUsed((value) => Math.min(value + 1, 2))
-    }
     setFeedback(`Incorrect. ${revealText}`)
     window.setTimeout(() => {
       moveToNextArtwork()
@@ -361,7 +292,6 @@ function App() {
           <div className="reveal-panel">
             <p className="reveal-label">The answer was</p>
             <p className="reveal-answer">{toDisplayLabel(currentArtwork.painterAliases[0])}</p>
-            <p className="reveal-period">{toDisplayLabel(currentArtwork.periodAliases[0])}</p>
             <button
               type="button"
               className="primary-button reveal-continue-button"
@@ -380,17 +310,8 @@ function App() {
         <div className="blast-overlay" aria-live="polite">
           <div className="blast-panel">
             <p className="blast-text">{blastMessage}</p>
-            {showPartialPrompt && (
+            {!blastMessage.includes('guessed it') && (
               <div className="blast-actions">
-                {!painterMatchOnly && (
-                  <button
-                    type="button"
-                    className="primary-button"
-                    onClick={handleTryAgain}
-                  >
-                    Try again
-                  </button>
-                )}
                 <button
                   type="button"
                   className="secondary-button"
@@ -404,179 +325,99 @@ function App() {
         </div>
       )}
 
-      {painterDialogOpen && (
-        <div
-          className="selection-dialog-backdrop"
-          role="presentation"
-          onClick={() => setPainterDialogOpen(false)}
-        >
-          <div
-            className="selection-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="painter-dialog-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <h3 id="painter-dialog-title">Select a painter</h3>
-            <p className="selection-help">Choose 1 from 10 painter options.</p>
-            <div className="selection-options">
-              {painterSelectionOptions.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  className="secondary-button selection-option-button"
-                  onClick={() => {
-                    setPainterAnswer(option)
-                    setPainterDialogOpen(false)
-                  }}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              className="secondary-button selection-close-button"
-              onClick={() => setPainterDialogOpen(false)}
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-
-      {periodDialogOpen && (
-        <div
-          className="selection-dialog-backdrop"
-          role="presentation"
-          onClick={() => setPeriodDialogOpen(false)}
-        >
-          <div
-            className="selection-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="period-dialog-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <h3 id="period-dialog-title">Select an art period</h3>
-            <p className="selection-help">Choose 1 from 3 period options.</p>
-            <div className="selection-options period-selection-options">
-              {periodSelectionOptions.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  className="secondary-button selection-option-button"
-                  onClick={() => {
-                    setPeriodAnswer(option)
-                    setPeriodDialogOpen(false)
-                  }}
-                >
-                  {toDisplayLabel(option)}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              className="secondary-button selection-close-button"
-              onClick={() => setPeriodDialogOpen(false)}
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-
       <section className="quiz-card">
         <header className="quiz-header">
           <h1>ArtMinds Quiz</h1>
-          <p>
+          <p className="quiz-progress-text">
             Artwork {currentIndex + 1} / {artworks.length} · Score: {score}
           </p>
           {isPremium && <p className="upgrade-note">Premium unlocked: unlimited artwork limit active.</p>}
         </header>
 
-        <img
-          className="art-image"
-          src={currentArtwork.imageUrl}
-          alt={`Artwork: ${currentArtwork.title}`}
-        />
+        <div className="quiz-body">
+          <div className="art-panel">
+            <details className="upgrade-disclosure upgrade-disclosure-inline">
+              <summary className="upgrade-summary">
+                Unlimited artwork option
+              </summary>
+              <div className="upgrade-box">
+                <p className="upgrade-title">Unlimited artwork limit</p>
+                <p className="upgrade-price">$9.99 per year</p>
+                {isPremium ? (
+                  <p className="upgrade-note">Premium unlocked. Unlimited artwork limit is active.</p>
+                ) : (
+                  <button
+                    type="button"
+                    className="primary-button"
+                    onClick={handleUpgradeClick}
+                    disabled={!stripePaymentLink}
+                  >
+                    Pay with Stripe
+                  </button>
+                )}
+                {!isPremium && !stripePaymentLink && (
+                  <p className="upgrade-note">
+                    Add VITE_STRIPE_PAYMENT_LINK in your .env file to enable checkout.
+                  </p>
+                )}
+              </div>
+            </details>
 
-        <form className="quiz-form" onSubmit={handleSubmit}>
-          <h2>Who painted this work of art, and what period is it from?</h2>
+            <img
+              className="art-image"
+              src={currentArtwork.imageUrl}
+              alt={`Artwork: ${currentArtwork.title}`}
+            />
+          </div>
 
-          <label>
-            Painter
-            <div className="selection-field">
-              <button
-                type="button"
-                className="secondary-button field-action-button"
-                onClick={() => setPainterDialogOpen(true)}
-                disabled={blastVisible}
-              >
-                {painterAnswer ? `Painter: ${painterAnswer}` : 'Choose Painter'}
-              </button>
+          <div className="quiz-form">
+            <div className="quiz-title-row">
+              <h2>Who painted this work of art?</h2>
+              <p className="attempts-text">
+                Attempts left: {attemptsLeft}
+              </p>
             </div>
-          </label>
-
-          <label>
-            Period
-            <div className="selection-field">
-              <button
-                type="button"
-                className="secondary-button field-action-button"
-                onClick={() => setPeriodDialogOpen(true)}
-                disabled={blastVisible}
-              >
-                {periodAnswer ? `Period: ${toDisplayLabel(periodAnswer)}` : 'Choose Period'}
-              </button>
-            </div>
-          </label>
-
-          <button
-            type="submit"
-            className="primary-button submit-answer-button"
-            disabled={blastVisible || !painterAnswer || !periodAnswer}
-          >
-            Submit Answer
-          </button>
-        </form>
-
-        <div className="status-box" aria-live="polite">
-          <p className="attempts-text">
-            Attempts left: {attemptsLeft}
-          </p>
-          <p className="status-text">
-            {feedback || 'Select Painter and Period, then press Submit Answer.'}
-          </p>
-        </div>
-
-        <div className="upgrade-box upgrade-box-right">
-          <p className="upgrade-title">Alternative: unlimited artwork limit</p>
-          <p className="upgrade-price">$9.99 per year</p>
-          {isPremium ? (
-            <p className="upgrade-note">Premium unlocked. Unlimited artwork limit is active.</p>
-          ) : (
-            <button
-              type="button"
-              className="primary-button"
-              onClick={handleUpgradeClick}
-              disabled={!stripePaymentLink}
-            >
-              Pay with Stripe
-            </button>
-          )}
-          {!isPremium && !stripePaymentLink && (
-            <p className="upgrade-note">
-              Add VITE_STRIPE_PAYMENT_LINK in your .env file to enable checkout.
+            <p className="legal-link-row legal-link-inline">
+              <a href="/terms.html" target="_blank" rel="noopener noreferrer">
+                Terms of Use
+              </a>
             </p>
-          )}
+            <p className="selection-help">Choose 1 from 10 painter options.</p>
+
+            <div className="selection-options" role="group" aria-label="Painter choices">
+              {painterSelectionOptions.map((option) => {
+                const isSelected = normalize(option) === normalize(painterAnswer)
+
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    className={`secondary-button selection-option-button${isSelected ? ' selection-option-button-active' : ''}`}
+                    aria-pressed={isSelected}
+                    onClick={() => submitPainterAnswer(option)}
+                    disabled={blastVisible || isResolvingSelection}
+                  >
+                    {option}
+                  </button>
+                )
+              })}
+            </div>
+
+            {painterAnswer && (
+              <p className="selected-answer-text">
+                {`Selected painter: ${painterAnswer}`}
+              </p>
+            )}
+
+            {feedback && (
+              <div className="status-box" aria-live="polite">
+                <p className="status-text">{feedback}</p>
+              </div>
+            )}
+          </div>
         </div>
+
       </section>
-      <p className="legal-link-row">
-        <a href="/terms.html" target="_blank" rel="noopener noreferrer">
-          Terms of Use
-        </a>
-      </p>
     </main>
   )
 }

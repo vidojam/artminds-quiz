@@ -80,6 +80,17 @@ const stripePaymentLink =
   import.meta.env.VITE_STRIPE_PAYMENT_LINK?.toString().trim() ?? ''
 const premiumStorageKey = 'artminds-premium-unlocked'
 const selectionFeedbackDelayMs = 160
+const questionAccentColors = [
+  '255, 247, 216',
+  '255, 214, 90',
+  '255, 80, 80',
+  '80, 210, 255',
+  '186, 120, 255',
+  '120, 255, 190',
+  '255, 179, 71',
+  '255, 160, 122',
+  '255, 196, 160',
+]
 
 const isPremiumSuccessInUrl = () => {
   const searchParams = new URLSearchParams(window.location.search)
@@ -106,6 +117,7 @@ function App() {
       ? 'Premium unlocked! Unlimited artwork limit is now active.'
       : '',
   )
+  const [questionAccent, setQuestionAccent] = useState(questionAccentColors[0])
   const [isResolvingSelection, setIsResolvingSelection] = useState(false)
   const [blastVisible, setBlastVisible] = useState(false)
   const [blastMessage, setBlastMessage] = useState('🎉 You guessed it! 🎉')
@@ -147,6 +159,17 @@ function App() {
 
     const cleanUrl = `${window.location.pathname}${window.location.hash}`
     window.history.replaceState({}, document.title, cleanUrl)
+  }, [])
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      const randomIndex = Math.floor(Math.random() * questionAccentColors.length)
+      setQuestionAccent(questionAccentColors[randomIndex])
+    }, 650)
+
+    return () => {
+      window.clearInterval(intervalId)
+    }
   }, [])
 
   const resetRoundInputs = () => {
@@ -372,7 +395,12 @@ function App() {
 
           <div className="quiz-form">
             <div className="quiz-title-row">
-              <h2>Who painted this work of art?</h2>
+              <h2
+                className="question-title"
+                style={{ '--question-accent': questionAccent } as React.CSSProperties}
+              >
+                Who painted this work of art?
+              </h2>
               <p className="attempts-text">
                 Attempts left: {attemptsLeft}
               </p>

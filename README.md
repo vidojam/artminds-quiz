@@ -44,13 +44,16 @@ npm run build
 
 ## Premium Stripe Setup
 
-Premium plan in this app is **unlimited artwork limit for $9.99/year**.
+Premium plan in this app is **unlimited paint selection option for $9.99/year**.
 
 1. Create a Stripe Payment Link in Stripe Dashboard.
 2. Create `.env` in project root:
 
 ```bash
 VITE_STRIPE_PAYMENT_LINK=https://buy.stripe.com/your-payment-link
+VITE_PREMIUM_VERIFY_ENDPOINT=/api/verify-premium
+STRIPE_SECRET_KEY=sk_test_or_sk_live_key
+STRIPE_PRICE_ID=price_optional_for_strict_validation
 ```
 
 3. Restart dev server.
@@ -59,13 +62,25 @@ When configured, the **Pay with Stripe** button redirects to Stripe Checkout.
 
 ### Premium Auto-Unlock Return URL
 
-Set Stripe success return URL to include one of these query params:
+Set Stripe success return URL to include both a success marker and checkout session id:
 
-- `?premium=success`
-- `?checkout=success`
-- `?payment=success`
+- `?checkout=success&session_id={CHECKOUT_SESSION_ID}`
 
-This marks premium as unlocked in local storage.
+The app verifies the session against Stripe on your server before unlocking premium.
+
+## Deploy to Render (Web Service)
+
+Use a **Web Service** (not Static Site) so `/api/verify-premium` can run.
+
+- Build Command: `npm install && npm run build`
+- Start Command: `npm run start`
+
+Set these Render environment variables:
+
+- `VITE_STRIPE_PAYMENT_LINK`
+- `VITE_PREMIUM_VERIFY_ENDPOINT=/api/verify-premium`
+- `STRIPE_SECRET_KEY`
+- `STRIPE_PRICE_ID` (optional but recommended)
 
 ## Test on iPhone (same Wi-Fi)
 

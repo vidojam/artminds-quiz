@@ -90,6 +90,8 @@ const normalize = (value: string) =>
 
 const stripePaymentLink =
   import.meta.env.VITE_STRIPE_PAYMENT_LINK?.toString().trim() ?? ''
+const premiumVerifyEndpoint =
+  import.meta.env.VITE_PREMIUM_VERIFY_ENDPOINT?.toString().trim() || '/api/verify-premium'
 const premiumStorageKey = 'artminds-premium-unlocked'
 const selectionFeedbackDelayMs = 160
 const questionAccentColors = [
@@ -111,21 +113,23 @@ const translations = {
     title: 'ArtMinds Quiz',
     quizComplete: 'Quiz complete.',
     yourScore: (score: number, total: number) => `Your score: ${score} / ${total}`,
-    unlockUnlimited: 'Unlock unlimited artwork limit',
+    unlockUnlimited: 'Unlock unlimited paint selection option',
     pricePerYear: '$9.99 per year',
-    premiumUnlocked: 'Premium unlocked. Unlimited artwork limit is active.',
-    premiumActive: 'Premium unlocked: unlimited artwork limit active.',
-    premiumBanner: 'Premium unlocked! Unlimited artwork limit is now active.',
+    premiumUnlocked: 'Premium unlocked. Unlimited paint selection option is active.',
+    premiumActive: 'Premium unlocked: unlimited paint selection option active.',
+    premiumBanner: 'Premium unlocked! Unlimited paint selection option is now active.',
     payWithStripe: 'Pay with Stripe',
     stripeNote: 'Add VITE_STRIPE_PAYMENT_LINK in your .env file to enable checkout.',
+    premiumVerifyFailed:
+      'Payment detected, but premium verification failed. Contact support if you were charged.',
     playAgain: 'Play again',
     termsOfUse: 'Terms of Use',
     theAnswerWas: 'The answer was',
     continue: 'Continue',
     artworkProgress: (current: number, total: number) =>
       `${current} / ${total}`,
-    unlimitedOption: 'Unlimited artwork option',
-    unlimitedLimit: 'Unlimited artwork limit',
+    unlimitedOption: 'Unlimited paint selection option',
+    unlimitedLimit: 'Unlimited paint selections',
     whoP: 'Who painted this work of art?',
     attemptsLeft: (n: number) => `Attempts left: ${n}`,
     selectionHelp: 'Choose 1 from 5 painter options.',
@@ -143,21 +147,23 @@ const translations = {
     title: 'Quiz ArtMinds',
     quizComplete: 'Quiz terminé.',
     yourScore: (score: number, total: number) => `Votre score : ${score} / ${total}`,
-    unlockUnlimited: "Débloquer la limite illimitée d'œuvres",
+    unlockUnlimited: "Débloquer l'option de sélection illimitée de peintures",
     pricePerYear: '9,99 $ par an',
-    premiumUnlocked: "Premium débloqué. La limite illimitée d'œuvres est active.",
-    premiumActive: "Premium débloqué : limite illimitée d'œuvres active.",
-    premiumBanner: "Premium débloqué ! La limite illimitée d'œuvres est maintenant active.",
+    premiumUnlocked: "Premium débloqué. L'option de sélection illimitée de peintures est active.",
+    premiumActive: "Premium débloqué : option de sélection illimitée de peintures active.",
+    premiumBanner: "Premium débloqué ! L'option de sélection illimitée de peintures est maintenant active.",
     payWithStripe: 'Payer avec Stripe',
     stripeNote: 'Ajoutez VITE_STRIPE_PAYMENT_LINK dans votre fichier .env pour activer le paiement.',
+    premiumVerifyFailed:
+      'Paiement détecté, mais la vérification Premium a échoué. Contactez le support si vous avez été facturé.',
     playAgain: 'Rejouer',
     termsOfUse: "Conditions d'utilisation",
     theAnswerWas: 'La réponse était',
     continue: 'Continuer',
     artworkProgress: (current: number, total: number) =>
       `${current} / ${total}`,
-    unlimitedOption: "Option illimitée d'œuvres",
-    unlimitedLimit: "Limite illimitée d'œuvres",
+    unlimitedOption: 'Option de sélection illimitée de peintures',
+    unlimitedLimit: 'Sélections de peintures illimitées',
     whoP: "Qui a peint cette \u0153uvre d\u2019art\u00a0?",
     attemptsLeft: (n: number) => `Tentatives restantes : ${n}`,
     selectionHelp: 'Choisissez 1 parmi 5 peintres.',
@@ -175,21 +181,23 @@ const translations = {
     title: 'Concurso ArtMinds',
     quizComplete: 'Quiz terminado.',
     yourScore: (score: number, total: number) => `Tu puntuación: ${score} / ${total}`,
-    unlockUnlimited: 'Desbloquear obras ilimitadas',
+    unlockUnlimited: 'Desbloquear opción de selección ilimitada de pinturas',
     pricePerYear: '$9.99 por año',
-    premiumUnlocked: 'Premium desbloqueado. El límite ilimitado de obras está activo.',
-    premiumActive: 'Premium desbloqueado: límite ilimitado de obras activo.',
-    premiumBanner: '¡Premium desbloqueado! El límite ilimitado de obras está activo.',
+    premiumUnlocked: 'Premium desbloqueado. La opción de selección ilimitada de pinturas está activa.',
+    premiumActive: 'Premium desbloqueado: opción de selección ilimitada de pinturas activa.',
+    premiumBanner: '¡Premium desbloqueado! La opción de selección ilimitada de pinturas está activa.',
     payWithStripe: 'Pagar con Stripe',
     stripeNote: 'Agrega VITE_STRIPE_PAYMENT_LINK en tu archivo .env para activar el pago.',
+    premiumVerifyFailed:
+      'Pago detectado, pero la verificación Premium falló. Contacta soporte si se realizó el cargo.',
     playAgain: 'Jugar de nuevo',
     termsOfUse: 'Términos de uso',
     theAnswerWas: 'La respuesta era',
     continue: 'Continuar',
     artworkProgress: (current: number, total: number) =>
       `${current} / ${total}`,
-    unlimitedOption: 'Opción ilimitada de obras',
-    unlimitedLimit: 'Límite ilimitado de obras',
+    unlimitedOption: 'Opción de selección ilimitada de pinturas',
+    unlimitedLimit: 'Selecciones ilimitadas de pinturas',
     whoP: '¿Quién pintó esta obra de arte?',
     attemptsLeft: (n: number) => `Intentos restantes: ${n}`,
     selectionHelp: 'Elige 1 de 5 opciones de pintores.',
@@ -220,16 +228,17 @@ const isPremiumSuccessInUrl = () => {
   )
 }
 
+const getCheckoutSessionIdInUrl = () => {
+  const searchParams = new URLSearchParams(window.location.search)
+  return searchParams.get('session_id') || searchParams.get('checkout_session_id')
+}
+
 function App() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [painterAnswer, setPainterAnswer] = useState('')
   const [attemptsUsed, setAttemptsUsed] = useState(0)
   const [score, setScore] = useState(0)
-  const [feedback, setFeedback] = useState(() =>
-    isPremiumSuccessInUrl()
-      ? translations['en'].premiumBanner
-      : '',
-  )
+  const [feedback, setFeedback] = useState('')
   const [questionAccent, setQuestionAccent] = useState(questionAccentColors[0])
   const [isResolvingSelection, setIsResolvingSelection] = useState(false)
   const [blastVisible, setBlastVisible] = useState(false)
@@ -239,12 +248,9 @@ function App() {
   const [quizFinished, setQuizFinished] = useState(false)
   const [language, setLanguage] = useState<Language>('en')
   const t = translations[language]
-  const [isPremium] = useState(() => {
+  const [isPremium, setIsPremium] = useState(() => {
     if (typeof window === 'undefined') return false
-    return (
-      window.localStorage.getItem(premiumStorageKey) === 'true' ||
-      isPremiumSuccessInUrl()
-    )
+    return window.localStorage.getItem(premiumStorageKey) === 'true'
   })
   const currentArtwork = artworks[currentIndex]
   const attemptsLeft = 2 - attemptsUsed
@@ -263,13 +269,37 @@ function App() {
   }, [currentArtwork])
 
   useEffect(() => {
-    if (!isPremiumSuccessInUrl()) return
+    const sessionId = getCheckoutSessionIdInUrl()
+    if (!sessionId || !isPremiumSuccessInUrl()) return
 
-    window.localStorage.setItem(premiumStorageKey, 'true')
+    const verifyPremium = async () => {
+      try {
+        const verifyUrl = `${premiumVerifyEndpoint}?session_id=${encodeURIComponent(sessionId)}`
+        const response = await window.fetch(verifyUrl)
 
-    const cleanUrl = `${window.location.pathname}${window.location.hash}`
-    window.history.replaceState({}, document.title, cleanUrl)
-  }, [])
+        if (!response.ok) {
+          setFeedback(t.premiumVerifyFailed)
+          return
+        }
+
+        const payload = (await response.json()) as { verified?: boolean }
+        if (payload.verified) {
+          window.localStorage.setItem(premiumStorageKey, 'true')
+          setIsPremium(true)
+          setFeedback(t.premiumBanner)
+        } else {
+          setFeedback(t.premiumVerifyFailed)
+        }
+      } catch {
+        setFeedback(t.premiumVerifyFailed)
+      } finally {
+        const cleanUrl = `${window.location.pathname}${window.location.hash}`
+        window.history.replaceState({}, document.title, cleanUrl)
+      }
+    }
+
+    void verifyPremium()
+  }, [t.premiumBanner, t.premiumVerifyFailed])
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {

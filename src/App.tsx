@@ -112,6 +112,11 @@ const translations = {
   en: {
     title: 'ArtMinds Quiz',
     quizComplete: 'Quiz complete.',
+    completionOffer: 'Five artworks completed. Do you want to repeat the artworks or upgrade to unlimited artworks for $9.99?',
+    repeatArtworks: 'Repeat artworks',
+    upgradeUnlimitedArtworks: 'Upgrade to unlimited artworks for $9.99',
+    exit: 'Exit',
+    thanksForPlaying: 'Thanks for playing.',
     yourScore: (score: number, total: number) => `Your score: ${score} / ${total}`,
     unlockUnlimited: 'Unlock unlimited paint selection option',
     pricePerYear: '$9.99 per year',
@@ -146,6 +151,11 @@ const translations = {
   fr: {
     title: 'Quiz ArtMinds',
     quizComplete: 'Quiz terminé.',
+    completionOffer: 'Cinq œuvres terminées. Voulez-vous revoir les œuvres ou passer aux œuvres illimitées pour 9,99 $ ?',
+    repeatArtworks: 'Revoir les œuvres',
+    upgradeUnlimitedArtworks: 'Passer aux œuvres illimitées pour 9,99 $',
+    exit: 'Quitter',
+    thanksForPlaying: 'Merci d’avoir joué.',
     yourScore: (score: number, total: number) => `Votre score : ${score} / ${total}`,
     unlockUnlimited: "Débloquer l'option de sélection illimitée de peintures",
     pricePerYear: '9,99 $ par an',
@@ -180,6 +190,11 @@ const translations = {
   es: {
     title: 'Concurso ArtMinds',
     quizComplete: 'Quiz terminado.',
+    completionOffer: 'Has completado cinco obras. ¿Quieres repetirlas o pasar a obras ilimitadas por $9.99?',
+    repeatArtworks: 'Repetir las obras',
+    upgradeUnlimitedArtworks: 'Obtener obras ilimitadas por $9.99',
+    exit: 'Salir',
+    thanksForPlaying: 'Gracias por jugar.',
     yourScore: (score: number, total: number) => `Tu puntuación: ${score} / ${total}`,
     unlockUnlimited: 'Desbloquear opción de selección ilimitada de pinturas',
     pricePerYear: '$9.99 por año',
@@ -246,6 +261,7 @@ function App() {
   const [isSuccessBlast, setIsSuccessBlast] = useState(false)
   const [showRevealOverlay, setShowRevealOverlay] = useState(false)
   const [quizFinished, setQuizFinished] = useState(false)
+  const [sessionExited, setSessionExited] = useState(false)
   const [language, setLanguage] = useState<Language>('en')
   const t = translations[language]
   const [isPremium, setIsPremium] = useState(() => {
@@ -325,7 +341,7 @@ function App() {
   const moveToNextArtwork = () => {
     const nextIndex = currentIndex + 1
     if (nextIndex >= artworks.length) {
-      restartQuiz()
+      setQuizFinished(true)
       return
     }
 
@@ -395,6 +411,11 @@ function App() {
     setIsSuccessBlast(false)
     setShowRevealOverlay(false)
     setQuizFinished(false)
+    setSessionExited(false)
+  }
+
+  const handleExit = () => {
+    setSessionExited(true)
   }
 
   const handleContinue = () => {
@@ -430,30 +451,36 @@ function App() {
               </select>
             </div>
           </header>
-          <p className="summary-text">{t.quizComplete}</p>
-          <p className="summary-text">{t.yourScore(score, artworks.length)}</p>
-          <div className="upgrade-box upgrade-box-right">
-            <p className="upgrade-title">{t.unlockUnlimited}</p>
-            <p className="upgrade-price">{t.pricePerYear}</p>
-            {isPremium ? (
-              <p className="upgrade-note">{t.premiumUnlocked}</p>
-            ) : (
-              <button
-                type="button"
-                className="primary-button"
-                onClick={handleUpgradeClick}
-                disabled={!stripePaymentLink}
-              >
-                {t.payWithStripe}
-              </button>
-            )}
-            {!isPremium && !stripePaymentLink && (
-              <p className="upgrade-note">{t.stripeNote}</p>
-            )}
-          </div>
-          <button type="button" className="primary-button play-again-button" onClick={restartQuiz}>
-            {t.playAgain}
-          </button>
+          {sessionExited ? (
+            <p className="summary-text">{t.thanksForPlaying}</p>
+          ) : (
+            <>
+              <p className="summary-text">{isPremium ? t.quizComplete : t.completionOffer}</p>
+              <p className="summary-text">{t.yourScore(score, artworks.length)}</p>
+              {isPremium && <p className="upgrade-note">{t.premiumUnlocked}</p>}
+              <div className="completion-actions">
+                <button type="button" className="secondary-button" onClick={restartQuiz}>
+                  {t.repeatArtworks}
+                </button>
+                {!isPremium && (
+                  <button
+                    type="button"
+                    className="primary-button"
+                    onClick={handleUpgradeClick}
+                    disabled={!stripePaymentLink}
+                  >
+                    {t.upgradeUnlimitedArtworks}
+                  </button>
+                )}
+                <button type="button" className="secondary-button" onClick={handleExit}>
+                  {t.exit}
+                </button>
+              </div>
+              {!isPremium && !stripePaymentLink && (
+                <p className="upgrade-note">{t.stripeNote}</p>
+              )}
+            </>
+          )}
         </section>
         <p className="legal-link-row">
           <a href="/terms.html" target="_blank" rel="noopener noreferrer">

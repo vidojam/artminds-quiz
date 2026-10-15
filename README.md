@@ -46,7 +46,7 @@ npm run build
 
 Premium plan in this app is **unlimited paint selection option for $9.99/year**.
 
-1. Create a Stripe Payment Link in Stripe Dashboard.
+1. Create a Stripe Payment Link in Stripe Dashboard and copy its `https://buy.stripe.com/...` URL. A Stripe API key (`sk_...` or `pk_...`) is not a payment URL.
 2. Create `.env` in project root:
 
 ```bash
@@ -56,7 +56,9 @@ STRIPE_SECRET_KEY=sk_test_or_sk_live_key
 STRIPE_PRICE_ID=price_optional_for_strict_validation
 ```
 
-3. Restart dev server.
+3. Restart the dev server after changing `.env`, or rebuild and redeploy production.
+
+Only public configuration belongs in `VITE_` variables: Vite includes these values in browser code. Keep `STRIPE_SECRET_KEY` server-side only. If a secret key was placed in a `VITE_` variable, rotate it in Stripe immediately, remove it from that variable, and rebuild/redeploy. Checkout is disabled when the payment link is missing or is not a valid HTTPS Stripe checkout URL.
 
 When configured, the **Pay with Stripe** button redirects to Stripe Checkout.
 

@@ -88,8 +88,25 @@ const normalize = (value: string) =>
     .replace(/[^a-z0-9\s-]/g, '')
     .replace(/\s+/g, ' ')
 
-const stripePaymentLink =
-  import.meta.env.VITE_STRIPE_PAYMENT_LINK?.toString().trim() ?? ''
+const getStripePaymentLink = () => {
+  try {
+    const url = new URL(import.meta.env.VITE_STRIPE_PAYMENT_LINK?.toString().trim() ?? '')
+    if (
+      url.protocol !== 'https:' ||
+      !['buy.stripe.com', 'checkout.stripe.com'].includes(url.hostname) ||
+      url.username ||
+      url.password ||
+      url.port ||
+      url.pathname === '/'
+    ) return ''
+
+    return url.href
+  } catch {
+    return ''
+  }
+}
+
+const stripePaymentLink = getStripePaymentLink()
 const premiumVerifyEndpoint =
   import.meta.env.VITE_PREMIUM_VERIFY_ENDPOINT?.toString().trim() || '/api/verify-premium'
 const premiumStorageKey = 'artminds-premium-unlocked'
@@ -124,7 +141,7 @@ const translations = {
     premiumActive: 'Premium unlocked: unlimited paint selection option active.',
     premiumBanner: 'Premium unlocked! Unlimited paint selection option is now active.',
     payWithStripe: 'Pay with Stripe',
-    stripeNote: 'Add VITE_STRIPE_PAYMENT_LINK in your .env file to enable checkout.',
+    stripeNote: 'Checkout is currently unavailable. Please try again later.',
     premiumVerifyFailed:
       'Payment detected, but premium verification failed. Contact support if you were charged.',
     playAgain: 'Play again',
@@ -163,7 +180,7 @@ const translations = {
     premiumActive: "Premium débloqué : option de sélection illimitée de peintures active.",
     premiumBanner: "Premium débloqué ! L'option de sélection illimitée de peintures est maintenant active.",
     payWithStripe: 'Payer avec Stripe',
-    stripeNote: 'Ajoutez VITE_STRIPE_PAYMENT_LINK dans votre fichier .env pour activer le paiement.',
+    stripeNote: 'Le paiement est actuellement indisponible. Veuillez r\u00e9essayer plus tard.',
     premiumVerifyFailed:
       'Paiement détecté, mais la vérification Premium a échoué. Contactez le support si vous avez été facturé.',
     playAgain: 'Rejouer',
@@ -202,7 +219,7 @@ const translations = {
     premiumActive: 'Premium desbloqueado: opción de selección ilimitada de pinturas activa.',
     premiumBanner: '¡Premium desbloqueado! La opción de selección ilimitada de pinturas está activa.',
     payWithStripe: 'Pagar con Stripe',
-    stripeNote: 'Agrega VITE_STRIPE_PAYMENT_LINK en tu archivo .env para activar el pago.',
+    stripeNote: 'El pago no est\u00e1 disponible en este momento. Int\u00e9ntalo m\u00e1s tarde.',
     premiumVerifyFailed:
       'Pago detectado, pero la verificación Premium falló. Contacta soporte si se realizó el cargo.',
     playAgain: 'Jugar de nuevo',

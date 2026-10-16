@@ -10,8 +10,9 @@ ArtMinds Quiz is a React + TypeScript app that shows artwork images and asks use
   - "Period matches only, try again or continue"
 - Correct-answer blast: "You guessed it!"
 - Score and progress tracking
-- Premium upgrade CTA via Stripe
-- Premium unlock state persisted in local storage
+- Account-linked premium upgrades via Stripe Checkout
+- Email/password sign-in with hashed passwords and HttpOnly session cookies
+- Unlimited access persisted in the server database, including across devices
 - Premium "saved correct answers this play period" counter
 - Responsive desktop + mobile layout
 - Terms of Use link and legal page
@@ -30,13 +31,23 @@ ArtMinds Quiz is a React + TypeScript app that shows artwork images and asks use
 npm install
 ```
 
-2. Start dev server:
+Requires Node.js 22.16 or newer for built-in SQLite. Use `.env.example` as a reference for local `.env` configuration. Do not commit secrets.
+
+2. Start the API server in one terminal:
+
+```bash
+npm start
+```
+
+3. Start the frontend in another terminal:
 
 ```bash
 npm run dev
 ```
 
-3. Build production bundle:
+Open `http://localhost:5173`. Vite forwards `/api` to port 3000. Set `APP_URL=http://localhost:5173` for this development setup. For a different frontend port or host, update `APP_URL` to match the browser origin and Vite's server settings.
+
+4. Build production bundle:
 
 ```bash
 npm run build
@@ -44,45 +55,47 @@ npm run build
 
 ## Premium Stripe Setup
 
-Premium plan in this app is **unlimited paint selection option for $9.99/year**.
+Premium is **permanent unlimited paint selection access for a one-time $9.99 payment**. The existing artwork collection repeats without the free five-artwork stopping point; this does not add a new artwork catalog.
 
-1. Create a Stripe Payment Link in Stripe Dashboard and copy its `https://buy.stripe.com/...` URL. A Stripe API key (`sk_...` or `pk_...`) is not a payment URL.
-2. Create `.env` in project root:
+1. Create an active **one-time** $9.99 Stripe Price in a development sandbox and use its `price_...` ID. Recurring prices are intentionally rejected.
+2. Configure these server-only settings in `.env` locally or your deployment's secret settings:
 
 ```bash
-VITE_STRIPE_PAYMENT_LINK=https://buy.stripe.com/your-payment-link
-VITE_PREMIUM_VERIFY_ENDPOINT=/api/verify-premium
-STRIPE_SECRET_KEY=sk_test_or_sk_live_key
-STRIPE_PRICE_ID=price_optional_for_strict_validation
+APP_URL=http://localhost:5173
+STRIPE_SECRET_KEY=your_restricted_stripe_key
+STRIPE_PRICE_ID=price_your_one_time_price
+STRIPE_WEBHOOK_SECRET=your_webhook_signing_secret
+DATABASE_PATH=./data/artminds.sqlite
 ```
 
-3. Restart the dev server after changing `.env`, or rebuild and redeploy production.
+Prefer a restricted `rk_` key with only the Price and Checkout Session permissions this server needs. Never put credentials in `VITE_` variables, which are embedded in browser code. Rotate any previously exposed keys.
 
-Only public configuration belongs in `VITE_` variables: Vite includes these values in browser code. Keep `STRIPE_SECRET_KEY` server-side only. If a secret key was placed in a `VITE_` variable, rotate it in Stripe immediately, remove it from that variable, and rebuild/redeploy. Checkout is disabled when the payment link is missing or is not a valid HTTPS Stripe checkout URL.
+3. **Required:** register `/api/stripe/webhook` as a Stripe webhook endpoint for `checkout.session.completed` and `checkout.session.async_payment_succeeded`. Store its signing secret in `STRIPE_WEBHOOK_SECRET`. Locally, forward these events with Stripe CLI to `http://localhost:3000/api/stripe/webhook` and use the CLI's signing secret.
+4. Restart the API server after configuration changes.
 
-When configured, the **Pay with Stripe** button redirects to Stripe Checkout.
+Users create an account or sign in before checkout. The server attaches the account ID to Checkout and automatically returns to `APP_URL/?checkout=success&session_id={CHECKOUT_SESSION_ID}`. Both signed webhooks and the authenticated return-page check use the same idempotent fulfillment function. Unpaid sessions, unrelated prices, and another account's checkout session cannot unlock access. Delayed payments unlock when Stripe confirms payment; refresh or sign in again to retrieve the updated status.
 
-### Premium Auto-Unlock Return URL
+Payment Links and the old browser-only local-storage premium flag are no longer trusted. Purchases made before account linking require support-assisted verification and migration; do not grant access from an old local-storage flag. Password reset and email verification are not implemented in this change.
 
-Set Stripe success return URL to include both a success marker and checkout session id:
-
-- `?checkout=success&session_id={CHECKOUT_SESSION_ID}`
-
-The app verifies the session against Stripe on your server before unlocking premium.
+Run `npm test`, `npm run build`, and `npm run lint` to validate. Automated tests mock Stripe API calls and use Stripe's real webhook signature verifier; a sandbox checkout is still required before launch.
 
 ## Deploy to Render (Web Service)
 
-Use a **Web Service** (not Static Site) so `/api/verify-premium` can run.
+Use a **Web Service** (not Static Site) so the account, checkout, and webhook APIs can run. Use a single service instance with a persistent disk for SQLite and back up that disk. Ephemeral deployment storage will lose accounts and purchases.
 
 - Build Command: `npm install && npm run build`
 - Start Command: `npm run start`
 
 Set these Render environment variables:
 
-- `VITE_STRIPE_PAYMENT_LINK`
-- `VITE_PREMIUM_VERIFY_ENDPOINT=/api/verify-premium`
+- `NODE_ENV=production`
+- `APP_URL=https://your-public-app-domain` (required; no trailing path)
 - `STRIPE_SECRET_KEY`
-- `STRIPE_PRICE_ID` (optional but recommended)
+- `STRIPE_PRICE_ID` (required one-time price)
+- `STRIPE_WEBHOOK_SECRET` (required)
+- `DATABASE_PATH=/var/data/artminds.sqlite` (mount the persistent disk at `/var/data`)
+
+Register the production webhook at `https://your-public-app-domain/api/stripe/webhook` using matching live-mode configuration. HTTPS is required for production session cookies. Never commit the database or environment file.
 
 ## Test on iPhone (same Wi-Fi)
 

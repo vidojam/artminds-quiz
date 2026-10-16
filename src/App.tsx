@@ -88,28 +88,19 @@ const normalize = (value: string) =>
     .replace(/[^a-z0-9\s-]/g, '')
     .replace(/\s+/g, ' ')
 
-const getStripePaymentLink = () => {
-  try {
-    const url = new URL(import.meta.env.VITE_STRIPE_PAYMENT_LINK?.toString().trim() ?? '')
-    if (
-      url.protocol !== 'https:' ||
-      !['buy.stripe.com', 'checkout.stripe.com'].includes(url.hostname) ||
-      url.username ||
-      url.password ||
-      url.port ||
-      url.pathname === '/'
-    ) return ''
+type Account = { id: string; email: string; isPremium: boolean }
 
-    return url.href
-  } catch {
-    return ''
-  }
+async function accountRequest(url: string, body?: object) {
+  const response = await fetch(url, {
+    method: body ? 'POST' : 'GET',
+    credentials: 'same-origin',
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  const payload = await response.json() as { user?: Account | null; verified?: boolean; url?: string; error?: string }
+  if (!response.ok) throw new Error(payload.error || 'Unable to connect. Please try again.')
+  return payload
 }
-
-const stripePaymentLink = getStripePaymentLink()
-const premiumVerifyEndpoint =
-  import.meta.env.VITE_PREMIUM_VERIFY_ENDPOINT?.toString().trim() || '/api/verify-premium'
-const premiumStorageKey = 'artminds-premium-unlocked'
 const selectionFeedbackDelayMs = 160
 const questionAccentColors = [
   '255, 247, 216',
@@ -136,7 +127,7 @@ const translations = {
     thanksForPlaying: 'Thanks for playing.',
     yourScore: (score: number, total: number) => `Your score: ${score} / ${total}`,
     unlockUnlimited: 'Unlock unlimited paint selection option',
-    pricePerYear: '$9.99 per year',
+    pricePerYear: '$9.99 one-time payment',
     premiumUnlocked: 'Premium unlocked. Unlimited paint selection option is active.',
     premiumActive: 'Premium unlocked: unlimited paint selection option active.',
     premiumBanner: 'Premium unlocked! Unlimited paint selection option is now active.',
@@ -175,7 +166,7 @@ const translations = {
     thanksForPlaying: 'Merci d’avoir joué.',
     yourScore: (score: number, total: number) => `Votre score : ${score} / ${total}`,
     unlockUnlimited: "Débloquer l'option de sélection illimitée de peintures",
-    pricePerYear: '9,99 $ par an',
+    pricePerYear: '9,99 $ en un seul paiement',
     premiumUnlocked: "Premium débloqué. L'option de sélection illimitée de peintures est active.",
     premiumActive: "Premium débloqué : option de sélection illimitée de peintures active.",
     premiumBanner: "Premium débloqué ! L'option de sélection illimitée de peintures est maintenant active.",
@@ -214,7 +205,7 @@ const translations = {
     thanksForPlaying: 'Gracias por jugar.',
     yourScore: (score: number, total: number) => `Tu puntuación: ${score} / ${total}`,
     unlockUnlimited: 'Desbloquear opción de selección ilimitada de pinturas',
-    pricePerYear: '$9.99 por año',
+    pricePerYear: '$9.99 en un solo pago',
     premiumUnlocked: 'Premium desbloqueado. La opción de selección ilimitada de pinturas está activa.',
     premiumActive: 'Premium desbloqueado: opción de selección ilimitada de pinturas activa.',
     premiumBanner: '¡Premium desbloqueado! La opción de selección ilimitada de pinturas está activa.',
@@ -281,10 +272,13 @@ function App() {
   const [sessionExited, setSessionExited] = useState(false)
   const [language, setLanguage] = useState<Language>('en')
   const t = translations[language]
-  const [isPremium, setIsPremium] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return window.localStorage.getItem(premiumStorageKey) === 'true'
-  })
+  const [account, setAccount] = useState<Account | null>(null)
+  const [accountLoading, setAccountLoading] = useState(true)
+  const [authMode, setAuthMode] = useState<'login' | 'register' | null>(null)
+  const [accountBusy, setAccountBusy] = useState(false)
+  const [accountMessage, setAccountMessage] = useState('')
+  const [upgradeAfterLogin, setUpgradeAfterLogin] = useState(false)
+  const isPremium = account?.isPremium === true
   const currentArtwork = artworks[currentIndex]
   const attemptsLeft = 2 - attemptsUsed
   const painterSelectionOptions = useMemo(() => {
@@ -302,36 +296,42 @@ function App() {
   }, [currentArtwork])
 
   useEffect(() => {
-    const sessionId = getCheckoutSessionIdInUrl()
-    if (!sessionId || !isPremiumSuccessInUrl()) return
-
-    const verifyPremium = async () => {
+    let active = true
+    const restoreAccount = async () => {
       try {
-        const verifyUrl = `${premiumVerifyEndpoint}?session_id=${encodeURIComponent(sessionId)}`
-        const response = await window.fetch(verifyUrl)
-
-        if (!response.ok) {
-          setFeedback(t.premiumVerifyFailed)
-          return
+        const payload = await accountRequest('/api/me')
+        if (!active) return
+        setAccount(payload.user || null)
+        const sessionId = getCheckoutSessionIdInUrl()
+        if (sessionId && isPremiumSuccessInUrl()) {
+          if (!payload.user) {
+            setAuthMode('login')
+            setAccountMessage('Sign in with the account used for your purchase.')
+            return
+          }
+          const result = await accountRequest(`/api/verify-premium?session_id=${encodeURIComponent(sessionId)}`)
+          if (!active) return
+          setAccount(result.user || null)
+          setFeedback(result.verified ? t.premiumBanner : 'Payment is still processing. Your account will unlock when payment clears.')
+          if (result.verified) {
+            const cleanUrl = new URL(window.location.href)
+            for (const key of ['checkout', 'payment', 'premium', 'session_id', 'checkout_session_id']) cleanUrl.searchParams.delete(key)
+            window.history.replaceState({}, document.title, cleanUrl)
+          }
         }
-
-        const payload = (await response.json()) as { verified?: boolean }
-        if (payload.verified) {
-          window.localStorage.setItem(premiumStorageKey, 'true')
-          setIsPremium(true)
-          setFeedback(t.premiumBanner)
-        } else {
-          setFeedback(t.premiumVerifyFailed)
-        }
-      } catch {
-        setFeedback(t.premiumVerifyFailed)
+      } catch (error) {
+        if (active) setAccountMessage(error instanceof Error ? error.message : t.premiumVerifyFailed)
       } finally {
-        const cleanUrl = `${window.location.pathname}${window.location.hash}`
-        window.history.replaceState({}, document.title, cleanUrl)
+        if (active) setAccountLoading(false)
       }
     }
-
-    void verifyPremium()
+    void restoreAccount()
+    const refreshOnFocus = () => { void restoreAccount() }
+    window.addEventListener('focus', refreshOnFocus)
+    return () => {
+      active = false
+      window.removeEventListener('focus', refreshOnFocus)
+    }
   }, [t.premiumBanner, t.premiumVerifyFailed])
 
   useEffect(() => {
@@ -358,7 +358,13 @@ function App() {
   const moveToNextArtwork = () => {
     const nextIndex = currentIndex + 1
     if (nextIndex >= artworks.length) {
-      setQuizFinished(true)
+      if (isPremium) {
+        setCurrentIndex(0)
+        setFeedback('')
+        resetRoundInputs()
+      } else {
+        setQuizFinished(true)
+      }
       return
     }
 
@@ -443,14 +449,96 @@ function App() {
     }, 1300)
   }
 
-  const handleUpgradeClick = () => {
-    if (!stripePaymentLink) return
-    window.location.href = stripePaymentLink
+  const beginCheckout = async () => {
+    const result = await accountRequest('/api/checkout', {})
+    if (!result.url) throw new Error('Checkout is unavailable. Please try again.')
+    window.location.assign(result.url)
   }
+
+  const handleUpgradeClick = async () => {
+    setAccountMessage('')
+    if (!account) {
+      setUpgradeAfterLogin(true)
+      setAuthMode('register')
+      return
+    }
+    setAccountBusy(true)
+    try {
+      await beginCheckout()
+    } catch (error) {
+      setAccountMessage(error instanceof Error ? error.message : t.stripeNote)
+    } finally {
+      setAccountBusy(false)
+    }
+  }
+
+  const accountLabels = {
+    en: { login: 'Sign in', register: 'Create account', logout: 'Sign out', email: 'Email', password: 'Password (12-128 characters)', cancel: 'Cancel', unlimited: 'Unlimited art active', free: 'Free account', loading: 'Loading account...', busy: 'Please wait...' },
+    fr: { login: 'Connexion', register: 'Créer un compte', logout: 'Déconnexion', email: 'E-mail', password: 'Mot de passe (12-128 caractères)', cancel: 'Annuler', unlimited: 'Art illimité actif', free: 'Compte gratuit', loading: 'Chargement du compte...', busy: 'Veuillez patienter...' },
+    es: { login: 'Iniciar sesión', register: 'Crear cuenta', logout: 'Cerrar sesión', email: 'Correo electrónico', password: 'Contraseña (12-128 caracteres)', cancel: 'Cancelar', unlimited: 'Arte ilimitado activo', free: 'Cuenta gratuita', loading: 'Cargando cuenta...', busy: 'Espera...' },
+  }[language]
+
+  const accountPanel = (
+    <section className="account-bar" aria-label={accountLabels.login}>
+      {accountLoading ? <p>{accountLabels.loading}</p> : account ? (
+        <div className="account-summary">
+          <span>{account.email} · {isPremium ? accountLabels.unlimited : accountLabels.free}</span>
+          <button type="button" className="secondary-button" disabled={accountBusy} onClick={async () => {
+            setAccountBusy(true)
+            try {
+              await accountRequest('/api/auth/logout', {})
+              setAccount(null)
+              setAccountMessage('')
+            } catch (error) {
+              setAccountMessage(error instanceof Error ? error.message : 'Unable to sign out.')
+            } finally {
+              setAccountBusy(false)
+            }
+          }}>{accountLabels.logout}</button>
+        </div>
+      ) : !authMode ? (
+        <div className="account-actions">
+          <button type="button" className="secondary-button" onClick={() => setAuthMode('login')}>{accountLabels.login}</button>
+          <button type="button" className="secondary-button" onClick={() => setAuthMode('register')}>{accountLabels.register}</button>
+        </div>
+      ) : (
+        <form className="account-form" onSubmit={async (event) => {
+          event.preventDefault()
+          const form = event.currentTarget
+          const values = new FormData(form)
+          setAccountBusy(true)
+          setAccountMessage('')
+          try {
+            const result = await accountRequest(`/api/auth/${authMode}`, { email: values.get('email'), password: values.get('password') })
+            setAccount(result.user || null)
+            setAuthMode(null)
+            form.reset()
+            if (getCheckoutSessionIdInUrl()) window.location.reload()
+            else if (upgradeAfterLogin && !result.user?.isPremium) await beginCheckout()
+            setUpgradeAfterLogin(false)
+          } catch (error) {
+            setAccountMessage(error instanceof Error ? error.message : 'Unable to sign in.')
+          } finally {
+            setAccountBusy(false)
+          }
+        }}>
+          <label>{accountLabels.email}<input name="email" type="email" autoComplete="email" required maxLength={254} disabled={accountBusy} /></label>
+          <label>{accountLabels.password}<input name="password" type="password" autoComplete={authMode === 'register' ? 'new-password' : 'current-password'} required minLength={12} maxLength={128} disabled={accountBusy} /></label>
+          <div className="account-actions">
+            <button type="submit" className="primary-button" disabled={accountBusy}>{accountBusy ? accountLabels.busy : accountLabels[authMode]}</button>
+            <button type="button" className="secondary-button" disabled={accountBusy} onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}>{authMode === 'login' ? accountLabels.register : accountLabels.login}</button>
+            <button type="button" className="secondary-button" disabled={accountBusy} onClick={() => { setAuthMode(null); setUpgradeAfterLogin(false) }}>{accountLabels.cancel}</button>
+          </div>
+        </form>
+      )}
+      {accountMessage && <p role="status">{accountMessage}</p>}
+    </section>
+  )
 
   if (quizFinished) {
     return (
       <main className="quiz-shell">
+        {accountPanel}
         <section className="quiz-card">
           <header className="quiz-header">
             <h1>{t.title}</h1>
@@ -484,7 +572,7 @@ function App() {
                     type="button"
                     className="primary-button"
                     onClick={handleUpgradeClick}
-                    disabled={!stripePaymentLink}
+                    disabled={accountBusy || accountLoading}
                   >
                     {t.upgradeUnlimitedArtworks}
                   </button>
@@ -493,9 +581,6 @@ function App() {
                   {t.exit}
                 </button>
               </div>
-              {!isPremium && !stripePaymentLink && (
-                <p className="upgrade-note">{t.stripeNote}</p>
-              )}
             </>
           )}
         </section>
@@ -510,6 +595,7 @@ function App() {
 
   return (
     <main className="quiz-shell">
+      {accountPanel}
       {showRevealOverlay && currentArtwork && (
         <div className="reveal-overlay" aria-live="assertive">
           <div className="reveal-panel">
@@ -639,13 +725,10 @@ function App() {
                       type="button"
                       className="primary-button"
                       onClick={handleUpgradeClick}
-                      disabled={!stripePaymentLink}
+                      disabled={accountBusy || accountLoading}
                     >
                       {t.payWithStripe}
                     </button>
-                  )}
-                  {!isPremium && !stripePaymentLink && (
-                    <p className="upgrade-note">{t.stripeNote}</p>
                   )}
                 </div>
               </details>

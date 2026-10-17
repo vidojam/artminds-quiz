@@ -97,7 +97,9 @@ async function accountRequest(url: string, body?: object) {
     headers: body ? { 'Content-Type': 'application/json' } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   })
-  const payload = await response.json() as { user?: Account | null; verified?: boolean; url?: string; error?: string }
+  const payload = await response.json().catch(() => {
+    throw new Error('Account and checkout services are unavailable. Please try again later.')
+  }) as { user?: Account | null; verified?: boolean; url?: string; error?: string }
   if (!response.ok) throw new Error(payload.error || 'Unable to connect. Please try again.')
   return payload
 }
@@ -278,6 +280,14 @@ function App() {
   const [accountBusy, setAccountBusy] = useState(false)
   const [accountMessage, setAccountMessage] = useState('')
   const [upgradeAfterLogin, setUpgradeAfterLogin] = useState(false)
+  useEffect(() => {
+    if (!authMode && !accountMessage) return
+    const panel = document.getElementById('account-panel')
+    const target = authMode ? panel?.querySelector<HTMLInputElement>('input[name="email"]') : panel
+    target?.focus({ preventScroll: true })
+    panel?.scrollIntoView({ block: 'center' })
+  }, [authMode, accountMessage])
+
   const isPremium = account?.isPremium === true
   const currentArtwork = artworks[currentIndex]
   const attemptsLeft = 2 - attemptsUsed
@@ -479,7 +489,7 @@ function App() {
   }[language]
 
   const accountPanel = (
-    <section className="account-bar" aria-label={accountLabels.login}>
+    <section id="account-panel" className="account-bar" aria-label={accountLabels.login} tabIndex={-1}>
       {accountLoading ? <p>{accountLabels.loading}</p> : account ? (
         <div className="account-summary">
           <span>{account.email} · {isPremium ? accountLabels.unlimited : accountLabels.free}</span>
@@ -574,7 +584,7 @@ function App() {
                     onClick={handleUpgradeClick}
                     disabled={accountBusy || accountLoading}
                   >
-                    {t.upgradeUnlimitedArtworks}
+                    {accountBusy ? accountLabels.busy : t.upgradeUnlimitedArtworks}
                   </button>
                 )}
                 <button type="button" className="secondary-button" onClick={handleExit}>
@@ -727,7 +737,7 @@ function App() {
                       onClick={handleUpgradeClick}
                       disabled={accountBusy || accountLoading}
                     >
-                      {t.payWithStripe}
+                      {accountBusy ? accountLabels.busy : t.payWithStripe}
                     </button>
                   )}
                 </div>
